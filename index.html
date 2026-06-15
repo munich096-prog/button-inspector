@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Button Defect Inspector — ระบบตรวจสอบกระดุม</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 20px;display:flex;align-items:center;gap:12px}
+header h1{font-size:16px;font-weight:600;color:#f1f5f9}
+header p{font-size:12px;color:#64748b;margin-top:2px}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e}
+#app{display:grid;grid-template-columns:1fr 300px;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+@media(max-width:768px){#app{grid-template-columns:1fr}}
+.panel{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px}
+#camWrap{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3;width:100%}
+#cam{width:100%;height:100%;object-fit:cover;display:block}
+#overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#camMsg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#000}
+#camMsg p{color:#64748b;font-size:13px}
+#startBtn{background:#3b82f6;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer}
+#startBtn:hover{background:#2563eb}
+.controls{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btn-toggle{background:#22c55e;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px}
+.btn-toggle.active{background:#ef4444}
+.badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600}
+.badge-live{background:#22c55e20;color:#22c55e;border:1px solid #22c55e40}
+.badge-pause{background:#f59e0b20;color:#f59e0b;border:1px solid #f59e0b40}
+.legend{margin-left:auto;display:flex;gap:10px}
+.leg{font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:4px}
+.leg span{width:10px;height:10px;border-radius:50%;display:inline-block}
+.sliders{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.sl-row{display:flex;flex-direction:column;gap:3px}
+.sl-row label{font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}
+input[type=range]{width:100%;accent-color:#3b82f6}
+.right-col{display:flex;flex-direction:column;gap:12px}
+.zoom-panel{text-align:center}
+#zoomCanvas{width:100%;max-width:220px;height:170px;object-fit:contain;border-radius:8px;border:1px solid #334155;background:#000;display:block;margin:0 auto}
+#verdict{font-size:18px;font-weight:600;margin:10px 0 4px}
+#verdict.good{color:#22c55e}
+#verdict.bad{color:#ef4444}
+#verdict.none{color:#64748b}
+.conf-bar{height:6px;background:#0f172a;border-radius:3px;overflow:hidden;margin:4px 0}
+.conf-fill{height:100%;border-radius:3px;transition:width .3s,background .3s}
+#detCount{font-size:11px;color:#64748b;margin-top:4px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-box{background:#0f172a;border-radius:8px;padding:10px;text-align:center}
+.stat-box .num{font-size:22px;font-weight:700;line-height:1}
+.stat-box .lbl{font-size:10px;color:#64748b;margin-top:3px;text-transform:uppercase;letter-spacing:.05em}
+.stat-box.good .num{color:#22c55e}
+.stat-box.bad .num{color:#ef4444}
+.stat-box.ref .num{color:#3b82f6}
+.stat-box.refbad .num{color:#f97316}
+.ref-panel h3{font-size:11px;font-weight:600;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em}
+.ref-btns{display:flex;flex-direction:column;gap:7px}
+.btn-good{background:#22c55e;color:#fff;border:none;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;width:100%}
+.btn-good:hover{background:#16a34a}
+.btn-bad{background:#ef4444;color:#fff;border:none;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;width:100%}
+.btn-bad:hover{background:#dc2626}
+.btn-ignore{background:#334155;color:#e2e8f0;border:none;padding:9px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;width:100%}
+.btn-ignore:hover{background:#475569}
+.refcount{font-size:11px;color:#64748b;margin-top:8px}
+.refcount span{color:#e2e8f0;font-weight:600}
+.help{font-size:11px;color:#64748b;line-height:1.7;background:#0f172a;border-radius:8px;padding:10px}
+.help strong{color:#94a3b8}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;pointer-events:none;opacity:1;transition:opacity .5s}
+.panel-title{font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
+.section-sep{border:none;border-top:1px solid #334155;margin:10px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="dot"></div>
+  <div>
+    <h1>🔍 Button Defect Inspector</h1>
+    <p>ระบบตรวจสอบคุณภาพกระดุมด้วย AI แบบ Real-time</p>
+  </div>
+</header>
+
+<div id="app">
+  <div>
+    <div class="panel">
+      <div id="camWrap">
+        <video id="cam" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div id="camMsg">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <p>กดปุ่มด้านล่างเพื่อเปิดกล้อง</p>
+          <button id="startBtn">📷 เปิดกล้อง</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn-toggle" id="toggleBtn">▶ เริ่มตรวจจับ</button>
+        <span id="liveBadge" class="badge badge-pause">หยุด</span>
+        <div class="legend">
+          <span class="leg"><span style="background:#22c55e"></span>ดี</span>
+          <span class="leg"><span style="background:#ef4444"></span>มี Defect</span>
+        </div>
+      </div>
+
+      <hr class="section-sep">
+      <div class="panel-title">⚙️ ปรับแต่งการตรวจจับ</div>
+      <div class="sliders">
+        <div class="sl-row">
+          <label>ความไวการตรวจจับ (Circle Sensitivity) <span id="sensVal">50</span></label>
+          <input type="range" id="sens" min="10" max="100" value="50" step="1">
+        </div>
+        <div style="display:flex;gap:16px">
+          <div class="sl-row" style="flex:1">
+            <label>รัศมีต่ำสุด <span id="rminVal">15</span>px</label>
+            <input type="range" id="rmin" min="5" max="80" value="15" step="1">
+          </div>
+          <div class="sl-row" style="flex:1">
+            <label>รัศมีสูงสุด <span id="rmaxVal">80</span>px</label>
+            <input type="range" id="rmax" min="20" max="200" value="80" step="1">
+          </div>
+        </div>
+        <div class="sl-row">
+          <label>Confidence Threshold <span id="confVal">0.55</span></label>
+          <input type="range" id="confThresh" min="0.3" max="0.95" value="0.55" step="0.05">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="panel zoom-panel">
+      <div class="panel-title">🔎 Zoom Preview</div>
+      <canvas id="zoomCanvas" width="220" height="170"></canvas>
+      <div id="verdict" class="none">— ไม่พบกระดุม —</div>
+      <div class="conf-bar"><div class="conf-fill" id="confFill" style="width:0%;background:#64748b"></div></div>
+      <div id="detCount">พบ: 0 จุด</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">📊 สถิติ</div>
+      <div class="stats-grid">
+        <div class="stat-box good"><div class="num" id="sGood">0</div><div class="lbl">ผ่าน</div></div>
+        <div class="stat-box bad"><div class="num" id="sBad">0</div><div class="lbl">Defect</div></div>
+        <div class="stat-box ref"><div class="num" id="sRef">0</div><div class="lbl">Ref ดี</div></div>
+        <div class="stat-box refbad"><div class="num" id="sRefBad">0</div><div class="lbl">Ref เสีย</div></div>
+      </div>
+    </div>
+
+    <div class="panel ref-panel">
+      <div class="panel-title">🧠 สอน AI — เพิ่ม Reference</div>
+      <div class="ref-btns">
+        <button class="btn-good" id="btnGood">✅ กระดุมดี (GOOD)</button>
+        <button class="btn-bad" id="btnBad">❌ มี Defect (NOT GOOD)</button>
+        <button class="btn-ignore" id="btnIgnore">🚫 ไม่ใช่กระดุม (ข้าม)</button>
+      </div>
+      <p class="refcount" id="refcountLabel">ดี: <span id="rcGood">0</span> | เสีย: <span id="rcBad">0</span> | ข้าม: <span id="rcIgn">0</span></p>
+    </div>
+
+    <div class="panel">
+      <div class="help">
+        <strong>วิธีใช้:</strong><br>
+        1. กด "เปิดกล้อง" แล้วอนุญาต<br>
+        2. กด "เริ่มตรวจจับ"<br>
+        3. จ่อกระดุมดี → กด "กระดุมดี" (ทำ 3-5 ครั้ง)<br>
+        4. จ่อกระดุมเสีย → กด "มี Defect" (ทำ 3-5 ครั้ง)<br>
+        5. ระบบจะตรวจสอบอัตโนมัติ 🎯
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const video=document.getElementById('cam');
+const overlayCanvas=document.getElementById('overlay');
+const ctx=overlayCanvas.getContext('2d');
+const zoomCanvas=document.getElementById('zoomCanvas');
+const zctx=zoomCanvas.getContext('2d');
+const camMsg=document.getElementById('camMsg');
+
+let detecting=false,camActive=false,animId=null;
+let refGood=[],refBad=[],refIgnore=[];
+let statsGood=0,statsBad=0;
+let lastCircles=[],frameCount=0;
+
+const sensSlider=document.getElementById('sens');
+const rminSlider=document.getElementById('rmin');
+const rmaxSlider=document.getElementById('rmax');
+const confSlider=document.getElementById('confThresh');
+
+function syncSliders(){
+  document.getElementById('sensVal').textContent=sensSlider.value;
+  document.getElementById('rminVal').textContent=rminSlider.value;
+  document.getElementById('rmaxVal').textContent=rmaxSlider.value;
+  document.getElementById('confVal').textContent=parseFloat(confSlider.value).toFixed(2);
+}
+[sensSlider,rminSlider,rmaxSlider,confSlider].forEach(s=>s.addEventListener('input',syncSliders));
+syncSliders();
+
+document.getElementById('startBtn').addEventListener('click',async()=>{
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    video.srcObject=stream;
+    video.onloadedmetadata=()=>{
+      overlayCanvas.width=video.videoWidth||640;
+      overlayCanvas.height=video.videoHeight||480;
+      camActive=true;
+      camMsg.style.display='none';
+      showToast('เปิดกล้องสำเร็จ 📷','#22c55e');
+    };
+  }catch(e){
+    camMsg.innerHTML='<p style="color:#ef4444">ไม่สามารถเข้าถึงกล้องได้<br><small>'+e.message+'</small></p>';
+  }
+});
+
+const toggleBtn=document.getElementById('toggleBtn');
+const liveBadge=document.getElementById('liveBadge');
+
+toggleBtn.addEventListener('click',()=>{
+  if(!camActive){showToast('กรุณาเปิดกล้องก่อน','#f59e0b');return;}
+  detecting=!detecting;
+  if(detecting){
+    liveBadge.textContent='กำลังตรวจ';liveBadge.className='badge badge-live';
+    toggleBtn.textContent='⏸ หยุดชั่วคราว';toggleBtn.classList.add('active');
+    loop();
+  }else{
+    liveBadge.textContent='หยุด';liveBadge.className='badge badge-pause';
+    toggleBtn.textContent='▶ เริ่มตรวจจับ';toggleBtn.classList.remove('active');
+    cancelAnimationFrame(animId);
+    ctx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+  }
+});
+
+function loop(){
+  if(!detecting)return;
+  frameCount++;
+  if(frameCount%3===0)processFrame();
+  animId=requestAnimationFrame(loop);
+}
+
+function processFrame(){
+  const w=overlayCanvas.width,h=overlayCanvas.height;
+  const off=document.createElement('canvas');
+  off.width=w;off.height=h;
+  const octx=off.getContext('2d');
+  octx.drawImage(video,0,0,w,h);
+  const imgData=octx.getImageData(0,0,w,h);
+  const circles=detectCircles(imgData,w,h);
+  lastCircles=circles;
+  drawOverlay(circles,octx,w,h);
+  if(circles.length>0)updateZoom(circles[0],octx,w,h);
+  else clearZoom();
+  document.getElementById('detCount').textContent='พบ: '+circles.length+' จุด';
+}
+
+function detectCircles(imgData,w,h){
+  const d=imgData.data;
+  const gray=new Uint8ClampedArray(w*h);
+  for(let i=0;i<w*h;i++){const p=i*4;gray[i]=Math.round(.299*d[p]+.587*d[p+1]+.114*d[p+2]);}
+  const edges=sobelEdge(gray,w,h);
+  return houghCircles(edges,w,h,parseInt(rminSlider.value),parseInt(rmaxSlider.value),parseInt(sensSlider.value));
+}
+
+function sobelEdge(gray,w,h){
+  const out=new Uint8ClampedArray(w*h);
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    const gx=-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]-2*gray[y*w+(x-1)]+2*gray[y*w+(x+1)]-gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)];
+    const gy=-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]+gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)];
+    out[y*w+x]=Math.min(255,Math.sqrt(gx*gx+gy*gy));
+  }
+  return out;
+}
+
+function houghCircles(edges,w,h,rMin,rMax,sens){
+  const circles=[];
+  const edgeThr=60;
+  const step=Math.max(2,Math.round((100-sens)/10));
+  const aw=Math.round(w/4),ah=Math.round(h/4);
+  const rStep=Math.max(3,Math.round((rMax-rMin)/10));
+  for(let r=rMin;r<=rMax;r+=rStep){
+    const acc=new Int16Array(aw*ah);
+    const pts=[];
+    for(let y=step;y<h-step;y+=step)for(let x=step;x<w-step;x+=step)
+      if(edges[y*w+x]>edgeThr)pts.push([x,y]);
+    const aStep=Math.PI/16;
+    for(const[x,y]of pts)for(let a=0;a<2*Math.PI;a+=aStep){
+      const cx=Math.round((x-r*Math.cos(a))/4),cy=Math.round((y-r*Math.sin(a))/4);
+      if(cx>=0&&cx<aw&&cy>=0&&cy<ah)acc[cy*aw+cx]++;
+    }
+    const thr=Math.round(20+sens*.3);
+    for(let cy=0;cy<ah;cy++)for(let cx=0;cx<aw;cx++)
+      if(acc[cy*aw+cx]>thr)circles.push({x:cx*4,y:cy*4,r,score:acc[cy*aw+cx]});
+  }
+  return nonMaxSup(circles);
+}
+
+function nonMaxSup(circles){
+  circles.sort((a,b)=>b.score-a.score);
+  const kept=[];
+  for(const c of circles){
+    let ok=true;
+    for(const k of kept)if(Math.sqrt((c.x-k.x)**2+(c.y-k.y)**2)<k.r*.8){ok=false;break;}
+    if(ok)kept.push(c);
+    if(kept.length>=6)break;
+  }
+  return kept;
+}
+
+function extractPatch(c,octx,w,h){
+  const sz=c.r*2+10,x0=Math.max(0,Math.round(c.x-c.r-5)),y0=Math.max(0,Math.round(c.y-c.r-5));
+  const sw=Math.min(sz,w-x0),sh=Math.min(sz,h-y0);
+  if(sw<=0||sh<=0)return null;
+  return octx.getImageData(x0,y0,sw,sh);
+}
+
+function img2vec(imgData){
+  const d=imgData.data,v=[];
+  for(let i=0;i<d.length;i+=32)v.push(d[i]/255,d[i+1]/255,d[i+2]/255);
+  return v;
+}
+
+function cosSim(a,b){
+  const len=Math.min(a.length,b.length);
+  let dot=0,na=0,nb=0;
+  for(let i=0;i<len;i++){dot+=a[i]*b[i];na+=a[i]*a[i];nb+=b[i]*b[i];}
+  return na===0||nb===0?0:dot/(Math.sqrt(na)*Math.sqrt(nb));
+}
+
+function classify(patch){
+  const thr=parseFloat(confSlider.value);
+  if(!refGood.length&&!refBad.length)return{label:'unknown',conf:0};
+  const v=img2vec(patch);
+  let mg=0,mb=0;
+  for(const r of refGood)mg=Math.max(mg,cosSim(v,r));
+  for(const r of refBad)mb=Math.max(mb,cosSim(v,r));
+  for(const r of refIgnore)if(cosSim(v,r)>0.92)return{label:'ignore',conf:1};
+  const total=mg+mb;
+  if(total<.001)return{label:'unknown',conf:0};
+  const gc=mg/total;
+  return gc>=thr?{label:'good',conf:gc}:{label:'bad',conf:1-gc};
+}
+
+function drawOverlay(circles,octx,w,h){
+  ctx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+  for(const c of circles){
+    const patch=extractPatch(c,octx,w,h);
+    const res=patch?classify(patch):{label:'unknown',conf:0};
+    const color=res.label==='good'?'#22c55e':res.label==='bad'?'#ef4444':'#94a3b8';
+    ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,2*Math.PI);
+    ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.stroke();
+    ctx.fillStyle=color;ctx.font='bold 11px system-ui';ctx.textAlign='center';
+    const pct=res.conf>0?' '+Math.round(res.conf*100)+'%':'';
+    const lbl=res.label==='good'?'ดี'+pct:res.label==='bad'?'เสีย'+pct:'?';
+    ctx.fillText(lbl,c.x,c.y-c.r-5);
+  }
+}
+
+function updateZoom(c,octx,w,h){
+  const sz=c.r*2+20,x0=Math.max(0,Math.round(c.x-c.r-10)),y0=Math.max(0,Math.round(c.y-c.r-10));
+  const sw=Math.min(sz,w-x0),sh=Math.min(sz,h-y0);
+  if(sw<=0||sh<=0)return;
+  zctx.clearRect(0,0,220,170);
+  zctx.drawImage(video,x0,y0,sw,sh,0,0,220,170);
+  const patch=extractPatch(c,octx,w,h);
+  if(!patch)return;
+  const res=classify(patch);
+  const v=document.getElementById('verdict');
+  const fill=document.getElementById('confFill');
+  if(res.label==='good'){
+    v.textContent='✅ ผ่าน (GOOD) '+Math.round(res.conf*100)+'%';
+    v.className='good';fill.style.background='#22c55e';fill.style.width=Math.round(res.conf*100)+'%';
+  }else if(res.label==='bad'){
+    v.textContent='❌ มี Defect '+Math.round(res.conf*100)+'%';
+    v.className='bad';fill.style.background='#ef4444';fill.style.width=Math.round(res.conf*100)+'%';
+  }else{
+    v.textContent='⏳ ยังไม่มี Reference';v.className='none';fill.style.width='0%';
+  }
+}
+
+function clearZoom(){
+  zctx.clearRect(0,0,220,170);
+  const v=document.getElementById('verdict');
+  v.textContent='— ไม่พบกระดุม —';v.className='none';
+  document.getElementById('confFill').style.width='0%';
+}
+
+function getVec(){
+  if(!camActive||!lastCircles.length)return null;
+  const off=document.createElement('canvas');
+  const w=overlayCanvas.width,h=overlayCanvas.height;
+  off.width=w;off.height=h;
+  const octx=off.getContext('2d');
+  octx.drawImage(video,0,0,w,h);
+  const patch=extractPatch(lastCircles[0],octx,w,h);
+  return patch?img2vec(patch):null;
+}
+
+function updateRefUI(){
+  document.getElementById('rcGood').textContent=refGood.length;
+  document.getElementById('rcBad').textContent=refBad.length;
+  document.getElementById('rcIgn').textContent=refIgnore.length;
+  document.getElementById('sRef').textContent=refGood.length;
+  document.getElementById('sRefBad').textContent=refBad.length;
+}
+
+document.getElementById('btnGood').addEventListener('click',()=>{
+  const v=getVec();
+  if(!v){showToast('จ่อกระดุมและกด เริ่มตรวจจับ ก่อน','#f59e0b');return;}
+  refGood.push(v);statsGood++;
+  document.getElementById('sGood').textContent=statsGood;
+  updateRefUI();showToast('บันทึก กระดุมดี ✅','#22c55e');
+});
+
+document.getElementById('btnBad').addEventListener('click',()=>{
+  const v=getVec();
+  if(!v){showToast('จ่อกระดุมและกด เริ่มตรวจจับ ก่อน','#f59e0b');return;}
+  refBad.push(v);statsBad++;
+  document.getElementById('sBad').textContent=statsBad;
+  updateRefUI();showToast('บันทึก มี Defect ❌','#ef4444');
+});
+
+document.getElementById('btnIgnore').addEventListener('click',()=>{
+  const v=getVec();
+  if(!v){showToast('จ่อวัตถุและกด เริ่มตรวจจับ ก่อน','#f59e0b');return;}
+  refIgnore.push(v);updateRefUI();showToast('บันทึก "ไม่ใช่กระดุม" 🚫','#64748b');
+});
+
+function showToast(msg,color){
+  const el=document.createElement('div');
+  el.className='toast';el.textContent=msg;el.style.background=color;
+  document.body.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),600)},1800);
+}
+</script>
+</body>
+</html>
